@@ -119,3 +119,4 @@ Docker Compose.
 5. Respuesta HTTP satisfactoria.
 6. Cambios registrados mediante Git.
 7. Logs y métricas disponibles para revisión.
+    
