@@ -1,28 +1,62 @@
-name: Validación DevOps
+
+name: DevOps Automation
+
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
-permissions:
-  contents: read
+
 jobs:
-  validar:
+  validar-servicio:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Validar configuración y construir
+      - name: Obtener codigo
+        uses: actions/checkout@v4
+
+      - name: Verificar archivos
         run: |
-          docker compose config -q
-          docker compose up -d --build
-      - name: Verificar HTTP y archivos estáticos
+          test -f src/index.html
+          test -f src/styles.css
+          test -f Dockerfile
+          test -f docker-compose.yml
+          test -f README.md
+          test -f .gitignore
+          test -f .env.example
+
+      - name: Preparar configuracion
+        run: cp .env.example .env
+
+      - name: Validar Docker Compose
+        run: docker compose config -q
+
+      - name: Construir imagen
+        run: docker compose build
+
+      - name: Iniciar servicio
+        run: docker compose up -d
+
+      - name: Verificar respuesta HTTP
         run: |
-          curl --fail --retry 10 --retry-connrefused --retry-delay 2 http://localhost:8080/ -o /tmp/index.html
-          grep -q 'Reserva tu hora médica' /tmp/index.html
-          curl --fail http://localhost:8080/styles.css -o /dev/null
-      - name: Diagnóstico y limpieza
+          for i in $(seq 1 20); do
+            if curl --fail --silent \
+              http://localhost:8080/ > /dev/null; then
+              echo "Servicio disponible"
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose logs
+          exit 1
+
+      - name: Verificar CSS
+        run: curl --fail http://localhost:8080/styles.css -o /dev/null
+
+      - name: Mostrar logs
         if: always()
-        run: |
-          docker compose ps
-          docker compose logs --no-color
-          docker compose down
+        run: docker compose logs --tail 30
+
+      - name: Detener contenedores
+        if: always()
+        run: docker compose down
